@@ -1,6 +1,6 @@
 // Increase the version when releasing updates. Cache names are scoped to the Pages path.
 const prefix='finance-shell:'+new URL(self.registration.scope).pathname+':';
-const version=prefix+'4';
+const version=prefix+'5';
 const shell=[
   './','./index.html','./assets/styles.css','./manifest.webmanifest',
   './assets/icons/icon-192.png','./assets/icons/icon-512.png','./assets/icons/apple.png','./assets/icons/maskable.png',

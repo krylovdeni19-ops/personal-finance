@@ -1,5 +1,9 @@
 const currency=new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:2});
-export const rub=value=>currency.format(Number(value)||0);
+const wholeCurrency=new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:0});
+export const rub=value=>{
+  const amount=Number(value)||0;
+  return (Number.isInteger(amount)?wholeCurrency:currency).format(amount);
+};
 const percent=value=>new Intl.NumberFormat('ru-RU',{style:'percent',maximumFractionDigits:1}).format(value || 0);
 export const esc=value=>String(value??'').replace(/[&<>"']/g, x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 export const options=(items,value)=>items.map(([id,label])=>`<option value="${esc(id)}" ${String(id)===String(value)?'selected':''}>${esc(label)}</option>`).join('');
@@ -17,9 +21,9 @@ const table=(headers,rows,style='')=>`<div class="scroll ${style}"><table><thead
 const kpi=(name,value,tone='')=>`<div class="kpi ${tone}"><small class="muted">${name}</small><strong>${value}</strong></div>`;
 const pair=(label,value)=>`<div class="subline"><span>${label}</span><strong>${value}</strong></div>`;
 
-export const pages=[['dashboard','Дашборд','M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z'],['transactions','Операции','M4 6h16M4 12h16M4 18h16M7 4v4m10 2v4m-6 2v4'],['budget','Бюджет','M4 20V5m0 15h16M9 16v-4m5 4V8m5 8V4'],['loans','Кредиты','M3 7h18v12H3zM3 11h18m-14 4h4'],['import','Загрузка','M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6']];
+export const pages=[['dashboard','Обзор','M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z'],['transactions','Операции','M4 6h16M4 12h16M4 18h16M7 4v4m10 2v4m-6 2v4'],['budget','Бюджет','M4 20V5m0 15h16M9 16v-4m5 4V8m5 8V4'],['loans','Кредиты','M3 7h18v12H3zM3 11h18m-14 4h4'],['import','Загрузка','M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6']];
 export function navigation(page) {
-  return pages.map(([id,label,path])=>`<a href="#${id}" ${id===page?'aria-current="page"':''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"></path></svg><span>${label}</span></a>`).join('');
+  return pages.map(([id,label,path])=>`<a href="#${id}" ${id===page?'aria-current="page"':''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"></path></svg><span>${label}</span>${id==='import'?'<span class="nav-upload-label">Загрузить выписку</span>':''}</a>`).join('');
 }
 export function settingsView(settings,showInstall,queue=[]) {
   return `<div class="connect">${title('Подключение')}${card('Google Таблица',`<form id="connect" class="stack">
@@ -33,19 +37,31 @@ function groups(group) {
   if (!group?.rows.length) return empty('За выбранный год операций нет.');
   return group.rows.map(item=>`<details class="details"><summary><div class="category"><strong>${esc(item.category)}</strong><span>${rub(item.sum)}</span><small>${percent(item.share)}</small></div><progress value="${item.share}" max="1" aria-label="Доля категории"></progress></summary>${item.children.map(x=>pair(esc(x.name),rub(x.sum))).join('')}</details>`).join('')+pair('Итого',rub(group.total));
 }
-function cashflow(d) {
-  const max=Math.max(d.earned,d.spent,1);
-  const flow=(label,value)=>`<div class="flow-row"><div class="flow-label"><span>${label}</span><strong>${rub(value)}</strong></div>
-    <div class="flow-track" aria-hidden="true"><span style="width:${Math.min(100,Math.max(0,value/max*100))}%"></span></div></div>`;
-  return `<section class="hero"><div><h2>Баланс за период</h2><strong class="hero-balance">${rub(d.balance)}</strong>
-    ${d.period?.from&&d.period?.to?`<small class="hero-period">${day(d.period.from)} — ${day(d.period.to)}</small>`:''}</div>
-    <div class="flow">${flow('Доходы',d.earned)}${flow('Расходы',d.spent)}</div></section>`;
+const monthLabel = new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric',timeZone:'UTC'});
+function periodLabel(period) {
+  if (period.mode==='month') {
+    const label=monthLabel.format(new Date(Date.UTC(period.year,Number(period.month)-1,1))).replace(/ г\.$/,'');
+    return label.charAt(0).toUpperCase()+label.slice(1);
+  }
+  if (period.mode==='year') return String(period.year);
+  if (period.mode==='quarter') return period.quarter+' квартал '+period.year;
+  if (period.mode==='week') return 'Неделя '+period.week+' · '+period.year;
+  return period.from&&period.to ? day(period.from)+' — '+day(period.to) : 'Выбрать период';
+}
+function recentOperations(rows=[]) {
+  if (!rows.length) return empty('За выбранный период операций нет.');
+  return `<ul class="recent-list">${rows.slice(0,4).map(tx=>{
+    const incoming=tx.type==='Пополнение';
+    return `<li><span class="recent-icon ${incoming?'incoming':''}" aria-hidden="true"><span>↑</span></span>
+      <div class="recent-description"><strong>${esc(tx.description)}</strong><small>${tx.category?esc(tx.category)+' · ':''}${day(tx.date)}</small></div>
+      <span class="recent-amount ${incoming?'incoming':''}">${incoming?'+':'−'}${rub(tx.amount)}</span></li>`;
+  }).join('')}</ul>`;
 }
 export function dashboardView(state) {
   const {period:p,snapshot:s}=state;
   const d=s?.dashboard;
   const credit=d?.credit;
-  const filter=`<details class="section filter-shell" id="dashboard-filter" ${state.filterOpen?'open':''}><summary>Выбрать период</summary>
+  const filter=`<details class="section filter-shell" id="dashboard-filter" ${state.filterOpen?'open':''}><summary aria-label="Выбрать период">${periodLabel(p)}</summary>
     <form id="period" class="filter-toolbar"><div class="fields">
     ${select('Режим','mode',[['year','Год'],['quarter','Квартал'],['month','Месяц'],['week','Неделя'],['custom','Произвольный']],p.mode)}
     ${input('Год для сводок','year',p.year,'number','min="1900" max="2200" required')}
@@ -54,15 +70,33 @@ export function dashboardView(state) {
     ${p.mode==='week'?input('Неделя ISO','week',p.week,'number','min="1" max="53" required'):''}
     ${p.mode==='custom'?input('Начало','from',p.from,'date','required')+input('Конец','to',p.to,'date','required'):''}
     </div><div class="actions">${formButton('Применить')}</div></form></details>`;
-  return title('Дашборд','<a class="button" href="#import">↑ Загрузить выписку</a>')+filter
-    +(d?cashflow(d)+`<div class="kpis">${kpi('Норма сбережений',percent(d.savingsRate),'positive')}${kpi('Кредитная нагрузка',percent(d.creditLoad),'outflow')}${kpi('Ближайший платёж',credit?.next?rub(credit.next.amount):'—','rate')}</div>
-      <div class="grid">${card('Расходы за год',groups(d.expense))}${card('Доходы за год',groups(d.income))}</div>
-      ${card('Кредиты',`<div class="grid"><div>${pair('Остаток долга',rub(credit?.balance))}${pair('Платежи в этом месяце',rub(credit?.thisMonth))}
-      ${pair('Дата ближайшего платежа',day(credit?.next?.date))}</div>
-      <div>${pair('Выплачено основного долга',rub(credit?.principalPaid))}${pair('Выплачено процентов',rub(credit?.interestPaid))}
-      ${pair('Переплата по графику',rub(credit?.overpayment))}${pair('Дата полного погашения',day(credit?.payoff))}</div></div>
-      ${(credit?.loans||[]).map(loan=>pair(esc(loan.name),rub(loan.balance)+' · '+esc(loan.rate)+'% · '+rub(loan.payment)+' · '+esc(loan.remaining)+' пл. · '+esc(loan.status))).join('')}`)}`
-    :card('Сводка',empty('Загрузите данные из Google Таблицы.')));
+  if (!d) return title('Обзор')+filter+card('Баланс',empty('Загрузите данные из Google Таблицы.'));
+  return `<section class="overview">
+      <div class="overview-heading"><h1>Баланс</h1>${filter}</div>
+      <strong class="balance-value">${rub(d.balance)}</strong>
+      <div class="overview-totals">
+        <div><span>Доходы</span><strong>${rub(d.earned)}</strong></div>
+        <div><span>Расходы</span><strong>${rub(d.spent)}</strong></div>
+      </div>
+    </section>
+    <div class="overview-columns">
+      <section class="overview-panel"><h2>Расходы по категориям</h2><p class="panel-note">За ${esc(d.period?.year ?? p.year)} год</p>${groups(d.expense)}</section>
+      <section class="overview-panel"><div class="panel-heading"><h2>Последние операции</h2><a href="#transactions">Все операции ›</a></div>${recentOperations(s.transactions)}</section>
+    </div>
+    <div class="overview-more grid">
+      <section class="overview-panel"><h2>Доходы по категориям</h2><p class="panel-note">За ${esc(d.period?.year ?? p.year)} год</p>${groups(d.income)}</section>
+      <section class="overview-panel"><h2>Сбережения и кредиты</h2>
+        ${pair('Норма сбережений',percent(d.savingsRate))}${pair('Кредитная нагрузка',percent(d.creditLoad))}
+        ${pair('Остаток долга',rub(credit?.balance))}${pair('Платежи в этом месяце',rub(credit?.thisMonth))}
+        ${pair('Ближайший платёж',credit?.next?day(credit.next.date)+' · '+rub(credit.next.amount):'—')}
+        <details><summary>Подробности по кредитам</summary>
+          ${pair('Выплачено основного долга',rub(credit?.principalPaid))}${pair('Выплачено процентов',rub(credit?.interestPaid))}
+          ${pair('Переплата по графику',rub(credit?.overpayment))}${pair('Дата полного погашения',day(credit?.payoff))}
+          ${(credit?.loans||[]).map(loan=>pair(esc(loan.name),rub(loan.balance)+' · '+esc(loan.rate)+'% · '+rub(loan.payment)+' · '+esc(loan.remaining)+' пл. · '+esc(loan.status))).join('')}
+        </details>
+      </section>
+    </div>`;
+
 }
 export function transactionsView(s,filters={}) {
   const heading=title('Операции','<a class="button secondary" href="#import">Загрузить выписку</a>');

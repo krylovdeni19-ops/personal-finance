@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f5fa">
+  <meta name="theme-color" content="#f7f7f2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Личные финансы">
@@ -20,7 +20,8 @@
 <body>
   <header class="topbar">
     <div class="top-inner">
-      <a href="#dashboard" class="brand"><span class="brand-icon" aria-hidden="true">₽</span> Личные финансы</a>
+      <a href="#dashboard" class="brand">Финансы</a>
+      <nav id="nav" aria-label="Основная навигация" hidden></nav>
       <div class="top-actions">
         <span id="sync-status" role="status"></span>
         <button id="refresh" class="ghost" aria-label="Обновить" title="Обновить"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5m4.4-1a7.7 7.7 0 1 0-.9 5.6"/></svg></button>
@@ -29,7 +30,6 @@
     </div>
   </header>
   <main id="app"></main>
-  <nav id="nav" aria-label="Основная навигация" hidden></nav>
   <div id="notice" role="status" aria-live="polite" hidden></div>
   <noscript>Для работы приложения включите JavaScript.</noscript>
 </body>
