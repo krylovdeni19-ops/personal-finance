@@ -42,13 +42,15 @@ function page() {
 function render() {
   const panel=$('#category-rules',app);
   if (panel) state.directoryOpen=panel.open;
+  const filter=$('#dashboard-filter',app);
+  if (filter) state.filterOpen=filter.open;
   state.page=page();
   const nav=$('#nav');
   nav.hidden=!state.settings;
   if (state.settings) nav.innerHTML=navigation(state.page);
   const views={
     dashboard:()=>dashboardView(state),
-    transactions:()=>transactionsView(state.snapshot),
+    transactions:()=>transactionsView(state.snapshot,state.transactionFilters),
     budget:()=>budgetView(state.snapshot,state.budgetMonth),
     loans:()=>loansView(state),
     import:()=>importView(state),
@@ -251,7 +253,7 @@ const events={
   'discard-change':async()=>{if (!state.queue[0]?.error || !confirm('Удалить отклонённое изменение из очереди?')) return;state.queue.shift();await set('queue',state.queue);await sync();render();},
   disconnect:async()=>{
     if (!confirm('Удалить подключение, локальный кэш и очередь изменений с этого устройства?')) return;
-    await clear(); Object.assign(state,{settings:null,snapshot:null,queue:[],preview:null,earlyResult:null,earlyData:null,schedule:null,linkTx:null,syncedAt:0});render();
+    await clear(); Object.assign(state,{settings:null,snapshot:null,queue:[],preview:null,transactionFilters:null,earlyResult:null,earlyData:null,schedule:null,linkTx:null,syncedAt:0});render();
   }
 };
 const forms={
@@ -265,7 +267,7 @@ const forms={
     if (table.origin!=='https://docs.google.com') throw Error('API вернул неверный URL таблицы.');
     if (state.settings && state.settings.sheetUrl!==table.href) {
       if (state.queue.length) throw Error('Сначала синхронизируйте очередь текущей таблицы или отключите её в настройках.');
-      await clear();state.snapshot=null;state.preview=null;state.schedule=null;state.linkTx=null;state.syncedAt=0;
+      await clear();state.snapshot=null;state.transactionFilters=null;state.preview=null;state.schedule=null;state.linkTx=null;state.syncedAt=0;
     }
     state.settings={...settings,sheetUrl:table.href};
     await set('settings',state.settings);
@@ -280,6 +282,7 @@ const forms={
     await set('period',state.period);
     await sync();render();
   },
+  'transaction-filter':data=>{state.transactionFilters=data;render();},
   'budget-period':async data=>{state.budgetMonth=data.period;await set('budgetMonth',data.period);await sync();render();},
   'directory-form':async data=>{state.editedDirectory='';await mutate('directory.save',data,data.id?'directory:'+data.id:undefined);render();},
   'rule-form':async (data,form)=>{
