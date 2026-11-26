@@ -4,7 +4,12 @@ import {categorize,norm} from './categorization.mjs';
 export async function parseStatement(file,snapshot) {
   const parsed=await parseFile(file);
   if (parsed.transactions.length>2000) throw new Error('Разделите выписку на файлы до 2000 операций.');
-  return {...parsed,transactions:parsed.transactions.map(tx=>({...tx,directoryId:categorize(tx,snapshot.directory,snapshot.rules,snapshot.loans)}))};
+  return {...parsed,transactions:applyCategories(parsed.transactions,snapshot)};
+}
+export function applyCategories(rows,snapshot) {
+  return rows.map(tx=>tx.edited ? tx : {
+    ...tx,directoryId:categorize(tx,snapshot.directory,snapshot.rules,snapshot.loans)
+  });
 }
 export function importPayload(rows) {
   return {

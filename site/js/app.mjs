@@ -1,6 +1,6 @@
 import {call,endpoint} from './api.mjs';
 import {get,set,clear} from './storage.mjs';
-import {parseStatement,importPayload,cachedPreview} from './import.mjs';
+import {parseStatement,importPayload,cachedPreview,applyCategories} from './import.mjs';
 import {navigation,pages,settingsView,dashboardView,transactionsView,budgetView,importView,loansView} from './view.mjs';
 
 const $=(selector,root=document)=>root.querySelector(selector);
@@ -40,6 +40,8 @@ function page() {
   return pages.some(([id])=>id===hash)||hash==='settings'?hash:'dashboard';
 }
 function render() {
+  const panel=$('#category-rules',app);
+  if (panel) state.directoryOpen=panel.open;
   state.page=page();
   const nav=$('#nav');
   nav.hidden=!state.settings;
@@ -87,9 +89,12 @@ async function sync(interactive=false) {
   let conflicts=0;
   let lastResult;
   let pulled=false;
+  let ruleSaved=false;
+  let rulesAction;
   try {
     while(state.queue.length) {
       const item=state.queue[0];
+      rulesAction=/^(rules|directory)\./.test(item.action) ? item.action : null;
       try {
         lastResult=await call(state.settings,item.action,item.data,item.change);
       } catch (error) {
@@ -99,6 +104,11 @@ async function sync(interactive=false) {
         throw Error(`Изменение в очереди отклонено. ${error.message} Его можно удалить в настройках.`);
       }
       if (lastResult?.conflict) conflicts++;
+      if (rulesAction && lastResult?.applied !== false) {
+        ruleSaved ||= rulesAction==='rules.save';
+        state.rulesNotice=rulesAction==='rules.save'?'Правило сохранено.':rulesAction==='directory.delete'?'Подкатегория удалена.':'Подкатегория сохранена.';
+        state.rulesError=false;
+      }
       if (item.action==='import.commit' && !lastResult?.replayed) message(`Добавлено: ${lastResult.added}. Дубликатов: ${lastResult.duplicates}. Привязано: ${lastResult.matched}.`);
       state.queue.shift();
       await set('queue',state.queue);
@@ -106,6 +116,16 @@ async function sync(interactive=false) {
     const range=dates(state.period);
     const data=await call(state.settings,'sync.pull',{...range,budget:budgetPeriod()});
     state.snapshot=data;
+    if (state.preview) {
+      const before=state.preview.rows;
+      const after=applyCategories(before,data);
+      const changed=after.filter((row,i)=>row.directoryId!==before[i].directoryId).length;
+      if (changed) {
+        state.preview.rows=after;
+        await updatePreview();
+      }
+      if (ruleSaved) state.rulesNotice+=' Строк с обновлённой категорией в предпросмотре: '+changed+'.';
+    }
     pulled=true;
     state.syncedAt=Date.now();
     await set('snapshot',data);
@@ -114,6 +134,10 @@ async function sync(interactive=false) {
     else if (interactive && !lastResult) message('Данные обновлены.');
   } catch (error) {
     state.syncError=true;
+    if (rulesAction) {
+      state.rulesNotice=error.message;
+      state.rulesError=true;
+    }
     message(error.message,true);
   } finally {
     state.syncing=false;
@@ -128,6 +152,10 @@ async function mutate(action,data,key) {
   state.queue.push({action,data,change:{id:uid(),at,base:state.syncedAt||0,key:key||uid()}});
   await set('queue',state.queue);
   if (!navigator.onLine) {
+    if (/^(rules|directory)\./.test(action)) {
+      state.rulesNotice='Изменение в очереди. Категории обновятся после подключения.';
+      state.rulesError=false;
+    }
     message('Изменение в очереди. Оно отправится при подключении.');
     status();
     return;
@@ -254,7 +282,13 @@ const forms={
   },
   'budget-period':async data=>{state.budgetMonth=data.period;await set('budgetMonth',data.period);await sync();render();},
   'directory-form':async data=>{state.editedDirectory='';await mutate('directory.save',data,data.id?'directory:'+data.id:undefined);render();},
-  'rule-form':async (data,form)=>{state.editedRule='';await mutate('rules.save',{...data,active:form.elements.active.checked},'rule:'+(data.id||data.pattern));render();},
+  'rule-form':async (data,form)=>{
+    const pattern=data.pattern.trim();
+    if (!pattern || !data.directoryId) throw Error('Введите фрагмент описания и выберите подкатегорию.');
+    state.editedRule='';
+    await mutate('rules.save',{...data,pattern,active:form.elements.namedItem('active').checked},'rule:'+(data.id||pattern.toLowerCase()));
+    render();
+  },
   'loan-form':async data=>{state.editedLoan='';state.loanKind=null;state.loanDraft=null;state.schedule=null;await mutate('loans.save',data,data.id?'loan:'+data.id:undefined);render();},
   'early-form':async data=>{state.earlyData=data;state.earlyResult=await call(state.settings,'loans.previewPrepayment',data);render();},
   'link-form':async data=>{const id=state.linkTx.id;await mutate('loans.linkTransaction',{...data,transactionId:id},'tx:'+id);state.linkTx=null;state.schedule=null;render();}
@@ -268,7 +302,8 @@ async function run(button,task) {
 app.addEventListener('submit',event=>{
   event.preventDefault();
   const form=event.target;
-  const submit=forms[form.id];
+  // A named form field can shadow form.id. Read the HTML attribute directly.
+  const submit=forms[form.getAttribute('id')];
   if (submit) void run(event.submitter,()=>submit(values(form),form));
 });
 app.addEventListener('click',event=>{
@@ -282,9 +317,9 @@ app.addEventListener('input',event=>{
 app.addEventListener('change',event=>void run(null,async()=>{
   const {target}=event;
   if (target.id==='statement') await loadFile(target.files[0]);
-  if (target.form?.id==='period' && target.name==='mode') {state.period={...state.period,...values(target.form)};render();}
-  if (target.form?.id==='loan-form' && target.name==='kind') {state.loanDraft=values(target.form);state.loanKind=target.value;render();}
-  if (target.form?.id==='link-form' && target.name==='loanId') {state.linkLoan=target.value;await loadSchedule(state.linkLoan);render();}
+  if (target.form?.getAttribute('id')==='period' && target.name==='mode') {state.period={...state.period,...values(target.form)};render();}
+  if (target.form?.getAttribute('id')==='loan-form' && target.name==='kind') {state.loanDraft=values(target.form);state.loanKind=target.value;render();}
+  if (target.form?.getAttribute('id')==='link-form' && target.name==='loanId') {state.linkLoan=target.value;await loadSchedule(state.linkLoan);render();}
   if (target.id==='edit-directory' || target.id==='edit-rule') {state[target.id==='edit-directory'?'editedDirectory':'editedRule']=target.value;render();}
   if (target.dataset.preview!==undefined) {
     const row=state.preview.rows[Number(target.dataset.preview)];

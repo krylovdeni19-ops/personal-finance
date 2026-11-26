@@ -74,8 +74,8 @@ export function budgetView(s,month) {
     <td>${row.auto?'<small>По графику</small>':shortcut('save-plan','Сохранить',row.id)}</td></tr>`)):empty('Данные бюджета ещё не загружены.')));
 }
 const kinds=[['regular','Обычная операция'],['own','Между своими счетами'],['savings','Накопления'],['loan-in','Выдача кредита'],['payment','Платёж по кредиту'],['early','Досрочное погашение'],['interest','Проценты'],['fee','Комиссии']];
-function directoryView(s,edited,editedRule) {
-  return `<details class="section" ${edited||editedRule?'open':''}><summary>Категории и правила</summary>
+function directoryView(s,edited,editedRule,state) {
+  return `<details id="category-rules" class="section" ${state.directoryOpen||edited||editedRule?'open':''}><summary>Категории и правила</summary>
     <form id="directory-form" class="stack"><h3>${edited?'Изменить подкатегорию':'Добавить подкатегорию'}</h3>
     <input type="hidden" name="id" value="${esc(edited?.id)}"><div class="fields">
     ${input('Категория','category',edited?.category,'text','required maxlength="100"')}
@@ -84,12 +84,14 @@ function directoryView(s,edited,editedRule) {
     <div class="actions">${formButton('Сохранить подкатегорию')}${edited?shortcut('delete-directory','Удалить',edited.id)+shortcut('edit-directory','Отмена'):''}</div></form>
     <div class="actions"><label class="field">Подкатегория для редактирования<select id="edit-directory">${optionList(s.directory,edited?.id)}</select></label></div>
     <form id="rule-form" class="stack"><h3>${editedRule?'Изменить правило':'Добавить правило'}</h3>
+    <p class="muted">Укажите общую часть описания, например MAGNIT, и выберите «Еда / Продукты». Правило применяется к предпросмотру и новым выпискам.</p>
     <input type="hidden" name="id" value="${esc(editedRule?.id)}"><div class="fields">
-    ${input('Фрагмент описания','pattern',editedRule?.pattern,'text','required maxlength="150"')}
+    ${input('Фрагмент описания','pattern',editedRule?.pattern,'text','required maxlength="150" placeholder="Например, MAGNIT"')}
     <label class="field">Подкатегория<select name="directoryId" required>${optionList(s.directory,editedRule?.directoryId)}</select></label>
     ${input('Приоритет','priority',editedRule?.priority??0,'number')}
     <label class="check"><input type="checkbox" name="active" ${editedRule?.active===false?'':'checked'}>Активно</label></div>
-    <div class="actions">${formButton('Сохранить правило')}${editedRule?shortcut('edit-rule','Отмена'):''}</div></form>
+    <div class="actions">${formButton('Сохранить правило')}${editedRule?shortcut('edit-rule','Отмена'):''}</div>
+    <p role="status" class="${state.rulesError?'negative':'muted'}" ${state.rulesNotice?'':'hidden'}>${esc(state.rulesNotice)}</p></form>
     <div class="actions"><label class="field">Правило для редактирования<select id="edit-rule">${options([['','Выберите'],...s.rules.map(x=>[x.id,x.pattern])],editedRule?.id)}</select></label></div>
     </details>`;
 }
@@ -106,7 +108,7 @@ export function importView(state) {
         <td>${tx.remember || tx.edited?`<label class="check"><input type="checkbox" data-remember="${i}" ${tx.remember?'checked':''}>Правило</label>
           <input aria-label="Фрагмент для правила" data-pattern="${i}" maxlength="150" value="${esc(tx.pattern)}">`:''}</td></tr>`))}
       <div class="actions"><button type="button" data-action="confirm-import">Подтвердить импорт</button>${shortcut('cancel-import','Отмена')}</div>`):'')+
-    directoryView(s,s.directory.find(x=>x.id===state.editedDirectory),s.rules.find(x=>x.id===state.editedRule));
+    directoryView(s,s.directory.find(x=>x.id===state.editedDirectory),s.rules.find(x=>x.id===state.editedRule),state);
 }
 const loanFields=(loan,kind)=>`<input type="hidden" name="id" value="${esc(loan?.id)}"><div class="fields">
   ${input('Название','name',loan?.name,'text','required')}${input('Кредитор','lender',loan?.lender,'text','required')}
