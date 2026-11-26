@@ -33,7 +33,7 @@ export function alfaPdfRows(pages) {
       } else if (ordinal || date) active=null;
     }
   }
-  if (!rows.length) throw new Error('Таблица операций Альфа-Банка не найдена. Для скана и других PDF используйте CSV или XLSX.');
+  if (!rows.length) throw new Error('В PDF не найдена таблица операций Альфа-Банка или ОТП Банка. Для сканов и других форматов используйте CSV или XLSX.');
   return [
     ['Дата операции','Операция','Расход','Приход','Назначение платежа'],
     ...rows.map(row=>[row.date,row.operation.trim(),row.debit,row.credit,row.purpose.replace(/\b\d{10,}\b/g,'').replace(/\s+/g,' ').trim()])

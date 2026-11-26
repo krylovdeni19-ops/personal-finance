@@ -96,7 +96,7 @@ function directoryView(s,edited,editedRule) {
 export function importView(state) {
   const s=state.snapshot || {directory:[],rules:[]};
   const p=state.preview;
-  return title('Загрузка выписки')+card('Файл выписки',`<div id="drop" class="drop"><label for="statement"><strong>Выберите файл или перетащите сюда</strong><br><small>CSV, XLSX, текстовый PDF Альфа-Банка · до 25 МБ</small></label><input id="statement" type="file" accept=".csv,.xlsx,.pdf,text/csv,application/pdf"></div>`)+
+  return title('Загрузка выписки')+card('Файл выписки',`<div id="drop" class="drop"><label for="statement"><strong>Выберите файл или перетащите сюда</strong><br><small>CSV, XLSX, текстовый PDF Альфа-Банка и ОТП Банка · до 25 МБ</small></label><input id="statement" type="file" accept=".csv,.xlsx,.pdf,text/csv,application/pdf"></div>`)+
     (p?card('Предпросмотр',`
       <p>${p.summary?`Новые <strong>${p.summary.added}</strong> · дубликаты <strong>${p.summary.duplicates}</strong> · без категории <strong>${p.summary.uncategorized}</strong> · совпадения с графиком <strong>${p.summary.matched}</strong>${p.summary.estimated?' · По последним сохранённым данным':''}`:
         `Разобрано <strong>${p.rows.length}</strong> · без категории <strong>${p.rows.filter(x=>!x.directoryId).length}</strong>. Дубли и платежи проверятся при синхронизации.`}</p>

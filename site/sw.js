@@ -1,11 +1,11 @@
 // Increase the version when releasing updates. Cache names are scoped to the Pages path.
 const prefix='finance-shell:'+new URL(self.registration.scope).pathname+':';
-const version=prefix+'1';
+const version=prefix+'2';
 const shell=[
   './','./index.html','./assets/styles.css','./manifest.webmanifest',
   './assets/icons/icon-192.png','./assets/icons/icon-512.png','./assets/icons/apple.png','./assets/icons/maskable.png',
   './js/app.mjs','./js/view.mjs','./js/api.mjs','./js/storage.mjs','./js/import.mjs','./js/categorization.mjs',
-  './js/parsers/statements.mjs','./js/parsers/alfa.mjs','./vendor/papaparse.min.js','./vendor/xlsx.full.min.js',
+  './js/parsers/statements.mjs','./js/parsers/alfa.mjs','./js/parsers/otp.mjs','./vendor/papaparse.min.js','./vendor/xlsx.full.min.js',
   './vendor/pdf.min.mjs','./vendor/pdf.worker.min.mjs'
 ];
 self.addEventListener('install',event=>event.waitUntil((async()=>{

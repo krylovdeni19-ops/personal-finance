@@ -1,4 +1,5 @@
 import {alfaPdfRows} from './alfa.mjs';
+import {otpPdfRows} from './otp.mjs';
 
 const dateNames = /^(дата( операции| транзакции| платежа| обработки)?|transaction date|date)$/i;
 const descriptionNames = /^(описание( операции)?|операция|детали операции|наименование|назначение платежа|description|merchant)$/i;
@@ -26,13 +27,13 @@ function parseAmount(value) {
   else decimal=decimal.replace(',','.');
   return /^[-+]?\d+(?:\.\d{1,2})?$/.test(decimal) ? Math.round(Number(decimal)*100)/100 : NaN;
 }
-export function parseTable(rows) {
+export function parseTable(rows,bankOverride) {
   const header=rows.findIndex(row=>row.some(x=>dateNames.test(normalize(x))) && row.some(x=>descriptionNames.test(normalize(x))) && row.some(x=>amountNames.test(normalize(x))||debitNames.test(normalize(x))||creditNames.test(normalize(x))));
   if (header<0) throw new Error('Не найдены колонки даты, описания и суммы либо прихода и расхода.');
   const names=rows[header].map(normalize);
   const col=pattern=>names.findIndex(x=>pattern.test(x));
   const indices={date:col(dateNames),description:col(descriptionNames),amount:col(amountNames),debit:col(debitNames),credit:col(creditNames),type:col(typeNames),id:col(idNames),purpose:col(/^назначение платежа$/i),currency:col(/^валюта(?: сч[её]та)?$/i)};
-  const bank=indices.debit>=0 && indices.credit>=0 && names.some(x=>/^операция$/i.test(x)) ? 'alfa' : 'statement';
+  const bank=bankOverride || (indices.debit>=0 && indices.credit>=0 && names.some(x=>/^операция$/i.test(x)) ? 'alfa' : 'statement');
   const transactions=[];
   const rejected=[];
   for (let i=header+1;i<rows.length;i++) {
@@ -72,7 +73,8 @@ export async function parseFile(file) {
         pages.push((await page.getTextContent()).items);
         page.cleanup();
       }
-      return parseTable(alfaPdfRows(pages));
+      const otp=otpPdfRows(pages);
+      return otp ? parseTable(otp,'otp') : parseTable(alfaPdfRows(pages));
     } finally { await job.destroy(); }
   }
   if (ext==='xlsx') {
@@ -95,5 +97,5 @@ export async function parseFile(file) {
     }
     throw new Error('Проверьте заголовки и разделители CSV.');
   }
-  throw new Error('Выберите CSV, XLSX или текстовый PDF Альфа-Банка.');
+  throw new Error('Выберите CSV, XLSX или текстовый PDF Альфа-Банка или ОТП Банка.');
 }
